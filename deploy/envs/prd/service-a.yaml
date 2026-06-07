@@ -1,0 +1,8 @@
+# service-a — PRD values (consumed by Helm).
+# image.tag is NOT set here; the prd promotion workflow injects the
+# stage-validated version via --set image.tag=X.Y.Z.
+replicaCount: 2
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi

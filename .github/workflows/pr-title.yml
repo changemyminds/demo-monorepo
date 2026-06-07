@@ -1,0 +1,41 @@
+name: pr-title
+
+# Enforce Conventional Commits on the PR title. release-please reads merged
+# commit/PR messages to compute version bumps, so this is a hard prerequisite.
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  lint-title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            refactor
+            docs
+            test
+            build
+            ci
+            chore
+            revert
+          scopes: |
+            service-a
+            service-b
+            service-c
+            service-d
+            libs
+            deploy
+            ci
+            release
+            repo
+          requireScope: false

@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: service-c-stage
+resources:
+  - ../../../base/service-c
+# newTag is a placeholder; the deploy job runs `kustomize edit set image`
+# with the just-built version AFTER the image exists (ARCHITECTURE.md rule #7).
+images:
+  - name: app
+    newName: ghcr.io/example/service-c
+    newTag: "0.1.0"
+replicas:
+  - name: service-c
+    count: 1

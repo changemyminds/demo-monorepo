@@ -1,0 +1,9 @@
+// Go workspace — live-at-head wiring. Apps import libs/go/common by its module
+// path and Go resolves it to local source here, with no version or replace stanza.
+go 1.22
+
+use (
+	./apps/service-a
+	./apps/service-b
+	./libs/go/common
+)

@@ -1,0 +1,92 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # ---- affected detection: which deployable units does this PR touch? ----
+  # A change to a shared lib fans out to every consumer (the lib→consumer edge).
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.collect.outputs.services }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            service-a:
+              - 'apps/service-a/**'
+              - 'libs/go/**'
+              - 'go.work'
+            service-b:
+              - 'apps/service-b/**'
+              - 'libs/go/**'
+              - 'go.work'
+            service-c:
+              - 'apps/service-c/**'
+              - 'libs/python/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+            service-d:
+              - 'apps/service-d/**'
+              - 'libs/python/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+      - id: collect
+        # paths-filter exposes each result as steps.filter.outputs.<name>;
+        # fold them into a JSON array of affected services for the matrix below.
+        env:
+          A: "${{ steps.filter.outputs['service-a'] }}"
+          B: "${{ steps.filter.outputs['service-b'] }}"
+          C: "${{ steps.filter.outputs['service-c'] }}"
+          D: "${{ steps.filter.outputs['service-d'] }}"
+        run: |
+          json=$(jq -cn \
+            --arg a "$A" --arg b "$B" --arg c "$C" --arg d "$D" \
+            '[ {n:"service-a",v:$a},{n:"service-b",v:$b},{n:"service-c",v:$c},{n:"service-d",v:$d} ]
+             | map(select(.v=="true") | .n)')
+          echo "services=$json" >> "$GITHUB_OUTPUT"
+          echo "Affected: $json"
+
+  # ---- one verify run per affected service (lint + test + build) ----
+  verify:
+    needs: detect
+    if: needs.detect.outputs.services != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.detect.outputs.services) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Go services (service-a, service-b) ---
+      - if: matrix.service == 'service-a' || matrix.service == 'service-b'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Go lint + test + build
+        if: matrix.service == 'service-a' || matrix.service == 'service-b'
+        run: |
+          go vet ./...
+          go test ./...
+          go build -o /tmp/${{ matrix.service }} ./apps/${{ matrix.service }}
+
+      # --- Python services (service-c, service-d) ---
+      - if: matrix.service == 'service-c' || matrix.service == 'service-d'
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: '0.9.18'
+      - name: Python lint + test
+        if: matrix.service == 'service-c' || matrix.service == 'service-d'
+        run: |
+          uv sync --all-packages
+          uv run ruff check .
+          uv run pytest apps/${{ matrix.service }} libs/python

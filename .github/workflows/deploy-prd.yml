@@ -1,0 +1,71 @@
+name: deploy-prd
+
+# Promotion model: prd is a separate, manual deploy of an ALREADY-built image
+# that was validated in stage. It is gated by the `production` Environment's
+# required reviewers, and never tied to a stage run (so it can deploy independently
+# and doesn't hold a run open waiting for approval).
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: Service to promote
+        required: true
+        type: choice
+        options:
+          - service-a
+          - service-b
+          - service-c
+          - service-d
+      version:
+        description: Version already validated in stage (X.Y.Z)
+        required: true
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  deploy:
+    environment: production     # required reviewers = the prd gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - uses: azure/setup-kubectl@v4
+      - uses: imranismail/setup-kustomize@v2
+
+      - name: Confirm image exists (no rebuild — reuse the stage-validated image)
+        env:
+          IMG: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.service }}:${{ inputs.version }}
+        run: |
+          echo "Promoting $IMG to prd"
+          docker manifest inspect "$IMG" >/dev/null \
+            || { echo "::error::image $IMG not found in registry"; exit 1; }
+
+      - name: Configure cluster access
+        run: echo "Configure prd cluster access here (see README 'substitute' list)."
+
+      - name: Deploy to prd (Helm for Go, Kustomize for Python)
+        env:
+          SERVICE: ${{ inputs.service }}
+          VERSION: ${{ inputs.version }}
+          IMAGE_REPO: ${{ env.REGISTRY }}/${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          case "$SERVICE" in
+            service-a|service-b)
+              helm upgrade --install "$SERVICE" "deploy/charts/$SERVICE" \
+                -f "deploy/envs/prd/$SERVICE.yaml" \
+                --set "image.repository=$IMAGE_REPO/$SERVICE" \
+                --set "image.tag=$VERSION" \
+                -n "$SERVICE-prd" --create-namespace
+              ;;
+            service-c|service-d)
+              cd "deploy/envs/prd/$SERVICE"
+              kustomize edit set image "app=$IMAGE_REPO/$SERVICE:$VERSION"
+              kubectl apply -k .
+              ;;
+          esac

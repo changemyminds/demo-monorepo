@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ required "image.tag must be set (inject via --set image.tag=X.Y.Z after build)" .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+          env:
+            - name: PORT
+              value: "{{ .Values.service.targetPort }}"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.service.targetPort }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.service.targetPort }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

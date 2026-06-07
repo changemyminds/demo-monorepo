@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-d
+  labels:
+    app: service-d
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-d
+  template:
+    metadata:
+      labels:
+        app: service-d
+    spec:
+      containers:
+        - name: service-d
+          # "app" is a placeholder image name; the kustomize `images` transformer
+          # rewrites it. The tag is injected at deploy time via
+          # `kustomize edit set image` AFTER build (ARCHITECTURE.md rule #7).
+          image: app
+          ports:
+            - containerPort: 8000
+          env:
+            - name: PORT
+              value: "8000"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000

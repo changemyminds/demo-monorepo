@@ -1,0 +1,83 @@
+name: release-deploy
+
+# Triggered by the per-app tags release-please creates (e.g. service-a-v1.2.3).
+# Builds the image first, then deploys to stage — so a manifest never points at
+# an image that does not exist yet (ARCHITECTURE.md rule #7).
+on:
+  push:
+    tags:
+      - 'service-a-v*'
+      - 'service-b-v*'
+      - 'service-c-v*'
+      - 'service-d-v*'
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      service: ${{ steps.meta.outputs.service }}
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        # tag = <service>-v<version>  →  split into the two parts
+        run: |
+          ref="${GITHUB_REF_NAME}"
+          echo "service=${ref%-v*}"  >> "$GITHUB_OUTPUT"
+          echo "version=${ref##*-v}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build & push image
+        env:
+          IMG: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ steps.meta.outputs.service }}:${{ steps.meta.outputs.version }}
+        run: |
+          docker build -f apps/${{ steps.meta.outputs.service }}/Dockerfile \
+            --build-arg VERSION=${{ steps.meta.outputs.version }} \
+            -t "$IMG" .
+          docker push "$IMG"
+
+  deploy-stage:
+    needs: build              # image is guaranteed to exist before we deploy
+    environment: staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - uses: azure/setup-kubectl@v4
+      - uses: imranismail/setup-kustomize@v2
+      - name: Configure cluster access
+        run: |
+          # POC placeholder: write the stage kubeconfig from a secret, e.g.
+          #   echo "${{ secrets.STAGE_KUBECONFIG }}" > "$HOME/.kube/config"
+          echo "Configure stage cluster access here (see README 'substitute' list)."
+      - name: Deploy to stage (Helm for Go, Kustomize for Python)
+        env:
+          SERVICE: ${{ needs.build.outputs.service }}
+          VERSION: ${{ needs.build.outputs.version }}
+          IMAGE_REPO: ${{ env.REGISTRY }}/${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          case "$SERVICE" in
+            service-a|service-b)
+              helm upgrade --install "$SERVICE" "deploy/charts/$SERVICE" \
+                -f "deploy/envs/stage/$SERVICE.yaml" \
+                --set "image.repository=$IMAGE_REPO/$SERVICE" \
+                --set "image.tag=$VERSION" \
+                -n "$SERVICE-stage" --create-namespace
+              ;;
+            service-c|service-d)
+              cd "deploy/envs/stage/$SERVICE"
+              kustomize edit set image "app=$IMAGE_REPO/$SERVICE:$VERSION"
+              kubectl apply -k .
+              ;;
+          esac

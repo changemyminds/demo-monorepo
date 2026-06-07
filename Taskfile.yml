@@ -1,0 +1,90 @@
+# Task orchestrator — zero-magic wrapper over native tooling (go, uv, docker).
+# Install: https://taskfile.dev    Run `task --list` to see everything.
+version: '3'
+
+vars:
+  REGISTRY: '{{.REGISTRY | default "ghcr.io/example"}}'
+  GO_SERVICES: service-a service-b
+  PY_SERVICES: service-c service-d
+
+tasks:
+  default:
+    cmds:
+      - task --list
+    silent: true
+
+  # ---------- aggregate ----------
+  test:
+    desc: Run all tests (Go + Python)
+    cmds:
+      - task: test:go
+      - task: test:py
+
+  lint:
+    desc: Lint everything
+    cmds:
+      - task: lint:go
+      - task: lint:py
+
+  build:
+    desc: Build all service images
+    cmds:
+      - for: { var: GO_SERVICES }
+        task: image
+        vars: { APP: '{{.ITEM}}' }
+      - for: { var: PY_SERVICES }
+        task: image
+        vars: { APP: '{{.ITEM}}' }
+
+  # ---------- Go ----------
+  test:go:
+    desc: Test Go modules + shared lib (via go.work)
+    cmds:
+      - go test ./...
+
+  lint:go:
+    desc: Vet Go code
+    cmds:
+      - go vet ./...
+
+  run:go:
+    desc: 'Run a Go service locally. Usage: task run:go APP=service-a'
+    dir: 'apps/{{.APP}}'
+    cmds:
+      - go run .
+
+  # ---------- Python ----------
+  sync:
+    desc: Sync the uv workspace (creates .venv, links live-at-head libs)
+    cmds:
+      - uv sync --all-packages
+
+  test:py:
+    desc: Test Python packages + shared lib
+    deps: [sync]
+    cmds:
+      - uv run pytest
+
+  lint:py:
+    desc: Lint Python (ruff)
+    deps: [sync]
+    cmds:
+      - uv run ruff check .
+
+  run:py:
+    desc: 'Run a Python service locally. Usage: task run:py APP=service-c'
+    deps: [sync]
+    cmds:
+      - uv run --package {{.APP}} uvicorn {{.APP | replace "-" "_"}}.main:app --reload
+
+  # ---------- containers ----------
+  image:
+    desc: 'Build an image (root context + per-app Dockerfile). Usage: task image APP=service-a VERSION=1.2.3'
+    vars:
+      VERSION: '{{.VERSION | default "dev"}}'
+    cmds:
+      - docker build
+        -f apps/{{.APP}}/Dockerfile
+        --build-arg VERSION={{.VERSION}}
+        -t {{.REGISTRY}}/{{.APP}}:{{.VERSION}}
+        .

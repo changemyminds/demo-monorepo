@@ -1,0 +1,3 @@
+# service-b — STAGE values (consumed by Helm).
+# image.tag is NOT set here; it is injected at deploy time via --set after build.
+replicaCount: 1

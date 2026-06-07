@@ -1,0 +1,14 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/example/service-b
+  # tag is intentionally empty: it is injected at deploy time via
+  # `--set image.tag=X.Y.Z` AFTER the image is built+pushed (ARCHITECTURE.md rule #7).
+  tag: ""
+  pullPolicy: IfNotPresent
+
+service:
+  port: 80
+  targetPort: 8080
+
+resources: {}

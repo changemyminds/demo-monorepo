@@ -1,0 +1,24 @@
+# CODEOWNERS — ownership boundaries at the directory level.
+# Replace the placeholder teams with real GitHub teams/users.
+# More specific rules below override earlier ones.
+
+# Default owner for everything not otherwise matched
+*                       @example/platform
+
+# Go services
+/apps/service-a/        @example/go-team
+/apps/service-b/        @example/go-team
+/libs/go/               @example/go-team
+
+# Python services
+/apps/service-c/        @example/python-team
+/apps/service-d/        @example/python-team
+/libs/python/           @example/python-team
+
+# Deployment & CI/CD
+/deploy/                @example/platform
+/.github/               @example/platform
+
+# Release tooling
+/release-please-config.json     @example/platform
+/.release-please-manifest.json  @example/platform

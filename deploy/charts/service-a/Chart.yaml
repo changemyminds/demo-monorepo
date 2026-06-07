@@ -1,0 +1,8 @@
+apiVersion: v2
+name: service-a
+description: Helm chart for service-a (Go + Gin)
+type: application
+# Chart version is metadata only; actual deployed version is image.tag, injected
+# at deploy time. Not managed by release-please (see ARCHITECTURE.md).
+version: 0.1.0
+appVersion: "0.1.0"

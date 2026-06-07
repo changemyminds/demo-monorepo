@@ -1,0 +1,25 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+    # Don't let deploy-time writebacks to env values re-trigger releases
+    # (relevant once the ArgoCD/GitOps path writes tags back into git).
+    paths-ignore:
+      - 'deploy/envs/**'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          # Manifest mode: config + manifest drive the 4 independent packages.
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          # On merge of a release PR, this creates per-app tags like
+          # `service-a-v1.2.3`, which the build+deploy workflow listens for.
