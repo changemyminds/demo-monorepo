@@ -1,6 +1,6 @@
 [project]
 name = "service-c"
-version = "0.1.0"  # managed by release-please (python release-type)
+version = "0.2.0"  # managed by release-please (python release-type)
 description = "service-c — Python + FastAPI demo service."
 requires-python = ">=3.11"
 dependencies = [
