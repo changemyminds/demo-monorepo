@@ -1,21 +1,22 @@
-# Build from the REPO ROOT so go.work + the shared lib are in context:
+# Build from the REPO ROOT so the app module + the shared lib are in context:
 #   docker build -f apps/service-b/Dockerfile --build-arg VERSION=1.2.3 .
 FROM golang:1.22-alpine AS build
 WORKDIR /src
 
-# Allow go to resolve/record checksums during the image build.
+# Allow go to resolve/record checksums during the image build (downloads gin).
+# No go.work here on purpose: the app pins the shared lib via a go.mod `replace`
+# (../../libs/go/common), so we build the module directly. Workspace mode is off,
+# which is what lets GOFLAGS=-mod=mod be used (it is illegal in workspace mode).
 ENV GOFLAGS=-mod=mod
 
-# Copy the workspace + every module it references (go.work lists all of them).
-COPY go.work ./
+# Copy the app module and the shared lib its replace directive points at.
 COPY libs/go ./libs/go
-COPY apps/service-a ./apps/service-a
 COPY apps/service-b ./apps/service-b
 
 ARG VERSION=dev
-RUN CGO_ENABLED=0 go build \
+RUN cd apps/service-b && CGO_ENABLED=0 go build \
       -ldflags="-s -w -X main.version=${VERSION}" \
-      -o /out/app ./apps/service-b
+      -o /out/app .
 
 # Minimal runtime image.
 FROM gcr.io/distroless/static-debian12

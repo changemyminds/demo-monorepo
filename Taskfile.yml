@@ -39,13 +39,15 @@ tasks:
   # ---------- Go ----------
   test:go:
     desc: Test Go modules + shared lib (via go.work)
+    # Module-path pattern, not ./... — the repo root has no go.mod, so a
+    # root-relative ./... matches no packages in this workspace.
     cmds:
-      - go test ./...
+      - go test github.com/example/demo-monorepo/...
 
   lint:go:
     desc: Vet Go code
     cmds:
-      - go vet ./...
+      - go vet github.com/example/demo-monorepo/...
 
   run:go:
     desc: 'Run a Go service locally. Usage: task run:go APP=service-a'
