@@ -35,6 +35,27 @@ task image APP=service-a VERSION=dev
 Shared libraries are **live at head**: edit `libs/go/common` or `libs/python/common`
 and consumers pick up the change immediately — no version bump, no republish.
 
+The Go apps pin the shared lib to local source via a `replace` directive in each
+`apps/service-*/go.mod`. This is required: the bare `go.work` `use` stanza stops
+resolving the local lib once an app also requires a third-party module, so Go would
+otherwise try to fetch the non-existent `common@v0.0.0` over the network.
+
+## Troubleshooting
+
+- **`uv run` fails with `Failed to spawn: pytest` / `uvicorn`** — the `.venv`'s
+  console-script shebangs hard-code an absolute interpreter path, so they break if
+  the repo is moved or renamed. Rebuild it:
+
+  ```bash
+  rm -rf .venv && uv sync --all-packages
+  ```
+
+- **Module path vs git remote** — the Go and Python module paths use
+  `github.com/example/demo-monorepo`, which does **not** match this repo's git
+  remote. This is an accepted trade-off of the live-at-head workspace: the path is
+  never fetched (it resolves to local source via the workspace + `replace`). It
+  would only matter if someone `go get`s the modules or drops the workspace wiring.
+
 ## Branch & PR
 
 1. Branch off `main`.
